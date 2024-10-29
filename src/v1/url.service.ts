@@ -3,13 +3,17 @@ import { CreateUrlDto } from './dto/create-url.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { V1Url } from './db/url.entity';
+import ShortId from 'short-uuid';
 
 @Injectable()
 export class V1UrlService {
+  private readonly shortUuid = ShortId();
+
   constructor(
     @InjectRepository(V1Url)
     private readonly urlRepository: Repository<V1Url>,
   ) {}
+
   getHello(): string {
     return 'Hello World!';
   }
@@ -51,7 +55,7 @@ export class V1UrlService {
         return { longUrl, shortUrl: customShortUrl };
       } else {
         // 5. If the custom short URL does not exist, create a new short URL.
-        const uniqueShortUrl = 'testing';
+        const uniqueShortUrl = this.generateShortUrl();
         await this.urlRepository.insert({ longUrl, shortUrl: uniqueShortUrl });
 
         // 6. Return the long URL and the short URL.
@@ -60,5 +64,10 @@ export class V1UrlService {
     } catch (error) {
       throw new Error(error.message);
     }
+  }
+
+  generateShortUrl(): string {
+    const longId = this.shortUuid.generate();
+    return longId.substring(0, 6);
   }
 }
