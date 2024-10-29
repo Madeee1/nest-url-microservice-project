@@ -3,12 +3,10 @@ import { CreateUrlDto } from './dto/create-url.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { V1Url } from './db/url.entity';
-import ShortId from 'short-uuid';
+import { generate } from 'short-uuid';
 
 @Injectable()
 export class V1UrlService {
-  private readonly shortUuid = ShortId();
-
   constructor(
     @InjectRepository(V1Url)
     private readonly urlRepository: Repository<V1Url>,
@@ -22,52 +20,66 @@ export class V1UrlService {
     longUrl: string,
     customShortUrl?: string,
   ): Promise<{ longUrl: string; shortUrl: string }> {
-    try {
-      // 1. Search if the long URL already exists in the database.
-      const existingUrl = await this.urlRepository.findOne({
-        where: { longUrl },
+    // 1. Search if the long URL already exists in the database.
+    const existingUrl = await this.urlRepository.findOne({
+      where: { longUrl },
+    });
+
+    // 2. If the long URL exists, return the short URL.
+    if (existingUrl) {
+      return { longUrl, shortUrl: existingUrl.shortUrl };
+    }
+
+    let shortUrl: string;
+
+    // 3. If there is a custom short URL, check if it already exists in the database
+    if (customShortUrl) {
+      if (customShortUrl.length > 16) {
+        throw new BadRequestException(
+          'Custom short URL must be a maximum of 16 characters',
+        );
+      }
+
+      const existingCustomUrl = await this.urlRepository.findOne({
+        where: { shortUrl: customShortUrl },
       });
 
-      // 2. If the long URL exists, return the short URL.
-      if (existingUrl) {
-        return { longUrl, shortUrl: existingUrl.shortUrl };
+      // 4. If the custom short URL exists, return an error message.
+      if (existingCustomUrl) {
+        throw new BadRequestException('Custom short URL already exists');
       }
 
-      // 3. If there is a custom short URL, check if it already exists in the database
-      if (customShortUrl) {
-        if (customShortUrl.length > 16) {
-          throw new BadRequestException(
-            'Custom short URL must be a maximum of 16 characters',
-          );
-        }
+      shortUrl = customShortUrl;
+    } else {
+      // 5. If the custom short URL does not exist, create a new short URL.
+      shortUrl = await this.generateUniqueShortUrl();
+    }
 
-        const existingCustomUrl = await this.urlRepository.findOne({
-          where: { shortUrl: customShortUrl },
-        });
-
-        // 4. If the custom short URL exists, return an error message.
-        if (existingCustomUrl) {
-          throw new BadRequestException('Custom short URL already exists');
-        }
-
-        // Create the data point in the database
-        await this.urlRepository.insert({ longUrl, shortUrl: customShortUrl });
-        return { longUrl, shortUrl: customShortUrl };
-      } else {
-        // 5. If the custom short URL does not exist, create a new short URL.
-        const uniqueShortUrl = this.generateShortUrl();
-        await this.urlRepository.insert({ longUrl, shortUrl: uniqueShortUrl });
-
-        // 6. Return the long URL and the short URL.
-        return { longUrl, shortUrl: uniqueShortUrl };
-      }
+    try {
+      // 6. Save the long URL and short URL to the database.
+      await this.urlRepository.insert({ longUrl, shortUrl });
+      return { longUrl, shortUrl };
     } catch (error) {
-      throw new Error(error.message);
+      // Catch unexpected errors
+      throw new Error(`Failed to create URL: ${error.message}`);
     }
   }
 
-  generateShortUrl(): string {
-    const longId = this.shortUuid.generate();
-    return longId.substring(0, 6);
+  private async generateUniqueShortUrl(): Promise<string> {
+    let uniqueShortUrl: string;
+    let isUnique = false;
+
+    while (!isUnique) {
+      uniqueShortUrl = generate().substring(0, 6);
+      const existingUrl = await this.urlRepository.findOne({
+        where: { shortUrl: uniqueShortUrl },
+      });
+
+      if (!existingUrl) {
+        isUnique = true;
+      }
+    }
+
+    return uniqueShortUrl;
   }
 }

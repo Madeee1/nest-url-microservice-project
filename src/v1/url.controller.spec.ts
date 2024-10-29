@@ -39,5 +39,15 @@ describe('AppController', () => {
       expect(response.longUrl).toEqual(longUrl);
       expect(response.shortUrl.length).toEqual(6);
     });
+
+    it('should return an error message if the custom short URL already exists', async () => {
+      const longUrl = 'https://www.github.com';
+      const customShortUrl = 'npm';
+      try {
+        await v1UrlController.createUrl({ longUrl, customShortUrl });
+      } catch (error) {
+        expect(error.message).toEqual('Custom short URL already exists');
+      }
+    });
   });
 });
