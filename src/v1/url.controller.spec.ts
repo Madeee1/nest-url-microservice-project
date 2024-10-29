@@ -3,6 +3,8 @@ import { V1UrlController } from './url.controller';
 import { V1UrlService } from './url.service';
 import { V1Url } from './db/url.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { Response } from 'express';
+import { createResponse } from 'node-mocks-http';
 
 describe('AppController', () => {
   let v1UrlController: V1UrlController;
@@ -25,6 +27,46 @@ describe('AppController', () => {
 
     v1UrlController = module.get<V1UrlController>(V1UrlController);
     v1UrlService = module.get<V1UrlService>(V1UrlService);
+  });
+
+  // Test the GET method
+  describe('getUrl', () => {
+    it('should redirect to the longUrl if the shortUrl exists', async () => {
+      const longUrl = 'https://www.npmjs.com';
+      const shortUrl = 'npm';
+      await v1UrlService.createUrl(longUrl, shortUrl);
+
+      const res = createResponse();
+      const response = await v1UrlController.getUrl(
+        shortUrl,
+        res as unknown as Response,
+      );
+      expect(res._getRedirectUrl()).toEqual(longUrl);
+    });
+
+    it('should return a 404 error if the short URL does not exist', async () => {
+      const shortUrl = 'npm';
+      const res = createResponse();
+
+      const response = await v1UrlController.getUrl(
+        shortUrl,
+        res as unknown as Response,
+      );
+      expect(res._getData()).toEqual('URL not found');
+    });
+
+    it('should protect against SQL Injection attacks', async () => {
+      const shortUrl = "'; DROP TABLE V1Url; --";
+      const res = createResponse();
+
+      try {
+        await v1UrlController.getUrl(shortUrl, res as unknown as Response);
+      } catch (error) {
+        expect(error.message).toEqual(
+          'Invalid values. Please enter valid values',
+        );
+      }
+    });
   });
 
   // Test the POST method

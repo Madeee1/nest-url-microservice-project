@@ -12,8 +12,30 @@ export class V1UrlService {
     private readonly urlRepository: Repository<V1Url>,
   ) {}
 
-  getHello(): string {
-    return 'Hello World!';
+  async getLongUrl(shortUrl: string): Promise<string> {
+    // Sanitize the short URL against SQL Injection attacks
+    if (
+      shortUrl.includes(';') ||
+      shortUrl.includes('--') ||
+      shortUrl.length > 16 ||
+      shortUrl.includes("'")
+    ) {
+      throw new BadRequestException(
+        'Invalid values. Please enter valid values',
+      );
+    }
+
+    // 1. Search the database for the long URL using the short URL.
+    const url = await this.urlRepository.findOne({
+      where: { shortUrl },
+    });
+
+    // 2. If the short URL exists, return the long URL.
+    if (url) {
+      return url.longUrl;
+    } else {
+      return null;
+    }
   }
 
   async createUrl(
