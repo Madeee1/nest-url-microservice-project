@@ -37,3 +37,35 @@ Your solution will be evaluated based on the following criteria:
 
 - Clone the provided GitHub repository to your personal account. After you have completed the test, send your code to effendy@evore.id, including setup instructions for the project in the README file.
 - Ensure your submission is submitted within a maximum of 4 days after you receive the email.
+
+## Project setup
+
+```bash
+$ npm install
+```
+
+## Compile and run the project
+
+```bash
+# development
+$ npm run start
+
+# watch mode
+$ npm run start:dev
+
+# production mode
+$ npm run start:prod
+```
+
+## Run tests
+
+```bash
+# unit tests
+$ npm run test
+
+# e2e tests
+$ npm run test:e2e
+
+# test coverage
+$ npm run test:cov
+```
