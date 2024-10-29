@@ -20,6 +20,25 @@ export class V1UrlService {
     longUrl: string,
     customShortUrl?: string,
   ): Promise<{ longUrl: string; shortUrl: string }> {
+    // Sanitize the long URL and custom short URL against SQL Injection attacks
+    if (
+      longUrl.includes(';') ||
+      longUrl.includes('--') ||
+      customShortUrl?.includes(';') ||
+      customShortUrl?.includes('--')
+    ) {
+      throw new BadRequestException(
+        'Invalid values. Please enter valid values',
+      );
+    }
+
+    // Validate the long URL to ensure it is a valid URL
+    try {
+      new URL(longUrl);
+    } catch (error) {
+      throw new BadRequestException('Invalid URL');
+    }
+
     // 1. Search if the long URL already exists in the database.
     const existingUrl = await this.urlRepository.findOne({
       where: { longUrl },
