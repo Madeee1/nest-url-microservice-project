@@ -12,7 +12,9 @@ export class V1UrlController {
   }
 
   @Post()
-  async createUrl(@Body() createUrlDto: CreateUrlDto): Promise<string> {
+  async createUrl(
+    @Body() createUrlDto: CreateUrlDto,
+  ): Promise<{ longUrl: string; shortUrl: string }> {
     return this.urlService.createUrl(
       createUrlDto.longUrl,
       createUrlDto.customShortUrl,
