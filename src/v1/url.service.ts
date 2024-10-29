@@ -1,8 +1,15 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateUrlDto } from './dto/create-url.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { V1Url } from './db/url.entity';
 
 @Injectable()
 export class V1UrlService {
+  constructor(
+    @InjectRepository(V1Url)
+    private readonly urlRepository: Repository<V1Url>,
+  ) {}
   getHello(): string {
     return 'Hello World!';
   }
@@ -11,26 +18,47 @@ export class V1UrlService {
     longUrl: string,
     customShortUrl?: string,
   ): Promise<{ longUrl: string; shortUrl: string }> {
-    // Logic for this function:
-    // 1. Search if the long URL already exists in the database.
-    // 2. If the long URL exists, return the short URL.
-    // 3. If there is a custom short URL, check if it already exists in the database
-    // 4. If the custom short URL exists, return an error message.
-    // 5. If the custom short URL does not exist, create a new short URL.
-    // 6. If there is no custom short URL, create a new short URL.
-    // 7. Return the long URL and short URL.
+    try {
+      // 1. Search if the long URL already exists in the database.
+      const existingUrl = await this.urlRepository.findOne({
+        where: { longUrl },
+      });
 
-    if (customShortUrl) {
-      if (customShortUrl.length > 16) {
-        throw new BadRequestException(
-          'Custom short URL must be a maximum of 16 characters',
-        );
+      // 2. If the long URL exists, return the short URL.
+      if (existingUrl) {
+        return { longUrl, shortUrl: existingUrl.shortUrl };
       }
+
+      // 3. If there is a custom short URL, check if it already exists in the database
+      if (customShortUrl) {
+        if (customShortUrl.length > 16) {
+          throw new BadRequestException(
+            'Custom short URL must be a maximum of 16 characters',
+          );
+        }
+
+        const existingCustomUrl = await this.urlRepository.findOne({
+          where: { shortUrl: customShortUrl },
+        });
+
+        // 4. If the custom short URL exists, return an error message.
+        if (existingCustomUrl) {
+          throw new BadRequestException('Custom short URL already exists');
+        }
+
+        // Create the data point in the database
+        await this.urlRepository.insert({ longUrl, shortUrl: customShortUrl });
+        return { longUrl, shortUrl: customShortUrl };
+      } else {
+        // 5. If the custom short URL does not exist, create a new short URL.
+        const uniqueShortUrl = 'testing';
+        await this.urlRepository.insert({ longUrl, shortUrl: uniqueShortUrl });
+
+        // 6. Return the long URL and the short URL.
+        return { longUrl, shortUrl: uniqueShortUrl };
+      }
+    } catch (error) {
+      throw new Error(error.message);
     }
-
-    customShortUrl = Math.random().toString(36).substring(2, 7);
-
-    // for testing, return the long URL and custom short URL
-    return { longUrl, shortUrl: customShortUrl };
   }
 }
