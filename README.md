@@ -1,42 +1,25 @@
-# Backend Developer Intern Code Test
+# Simple NestJS Backend with JWT authentication and a sqlite database
 
-**Objective:** Create a URL shortener backend using Nest.js
+**Objective:** Create a URL shortener backend with a redirection service
 
 ## Requirements:
 
-1. The shortened link must be unique and have an expiration of 5 years.
-2. The system should implement authentication guard with email password using jwt token for creating token.
-3. Allow the user to customize the URL with a maximum of 16 characters.
-4. The system-generated short URL should be 6 characters.
+1. The shortened link must be unique and have an expiration of 5 years. - FULFILLED
+2. The system should implement authentication guard with email password using jwt token for creating token. - FULFILLED
+3. Allow the user to customize the URL with a maximum of 16 characters. - FULFILLED
+4. The system-generated short URL should be 6 characters. - FULFILLED
 5. The system should not have any downtime and must operate as fast as possible.
 6. The system should effectively handle thousands of requests per second for generating unique short URLs.
+7. Rate limiter to prevent abuse - FULFILLED
+8. Unit tests to test functionality - FULFILLED
+9. API Endpoint Documentation - FULFILLED - at bottom of Readme
+10. Migration File for MySQL - PARTIALLY FULFILLED - use of sqlite instead through TypeORM
+11. API Documentation using Postman or Swagger
 
-## Instructions:
-
-1. Provide a RESTful API to shorten a given URL.
-2. The API should return the shortened URL and its expiration date.
-3. Implement a redirection service that, when a user accesses the shortened URL, redirects to the original URL.
-4. Include rate-limiting to prevent abuse.
-5. Implement unit tests to test the functionality of your service.
-6. Document your API endpoints and include a README file with setup instructions.
-7. Document the API using Postman or Swagger.
-
-## Evaluation:
-
-Your solution will be evaluated based on the following criteria:
-
-- Code quality and organization
-- Adherence to the project requirements
-- Use of best practices for API design and security
-- Efficiency of the implemented solution
-- Completeness of the tests and documentation
-- Use of caching mechanisms is considered a plus point
-- Using a migration file for MySQL is considered a plus point
-
-## Submission Instructions
-
-- Clone the provided GitHub repository to your personal account. After you have completed the test, send your code to effendy@evore.id, including setup instructions for the project in the README file.
-- Ensure your submission is submitted within a maximum of 4 days after you receive the email.
+## Setup Instructions:
+1. Run ```npm install``` in the terminal, using Node 20.12.1
+2. Make sure .env file is filled properly. Use .env.example for an example
+3. Run ```npm run start``` to run the backend locally at localhost:3000
 
 ## Project setup
 
@@ -50,22 +33,112 @@ $ npm install
 # development
 $ npm run start
 
-# watch mode
+# Hot Module Reloading (HMR) mode
 $ npm run start:dev
-
-# production mode
-$ npm run start:prod
 ```
 
-## Run tests
+## Run Unit Tests
 
 ```bash
 # unit tests
 $ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
 ```
+
+## API Endpoints
+
+### Authentication
+
+#### Register a New User
+
+- **Endpoint:** `POST /v1/auth/register`
+- **Description:** Registers a new user with an email and password.
+- **Request Body:**
+    ```json
+    {
+      "email": "user@example.com",
+      "password": "yourpassword"
+    }
+    ```
+- **Response:**
+    ```json
+    {
+      "id": 1,
+      "email": "user@example.com"
+    }
+    ```
+
+#### Login
+
+- **Endpoint:** `POST /v1/auth/login`
+- **Description:** Authenticates a user and returns a JWT token.
+- **Request Body:**
+    ```json
+    {
+      "email": "user@example.com",
+      "password": "yourpassword"
+    }
+    ```
+- **Response:**
+    ```json
+    {
+      "access_token": "YOUR_JWT_TOKEN"
+    }
+    ```
+
+### URL Shortening
+
+#### Create a Short URL
+
+- **Endpoint:** `POST /v1/url`
+- **Description:** Creates a new short URL for a given long URL. No custom URL means that a random one will be created
+- **Headers:**
+    - `Authorization: Bearer <YOUR_JWT_TOKEN>`
+- **Request Body:**
+    ```json
+    {
+      "longUrl": "https://www.example.com",
+      "customShortUrl": "optionalCustom"
+    }
+    ```
+- **Response:**
+    ```json
+    {
+      "longUrl": "https://www.example.com",
+      "shortUrl": "abc123",
+      "expiresAt": "2024-12-31T23:59:59.999Z"
+    }
+    ```
+
+#### Redirect to Original URL
+
+- **Endpoint:** `GET /v1/url/:shortUrl`
+- **Description:** Redirects to the original long URL based on the provided short URL.
+- **Parameters:**
+    - `shortUrl` (path parameter): The short URL identifier.
+- **Response:** Redirects to the original URL.
+
+#### Update an Expired URL
+
+- **Endpoint:** `PUT /v1/url`
+- **Description:** Updates an expired URL with a new short URL and expiration date.
+- **Headers:**
+    - `Authorization: Bearer <YOUR_JWT_TOKEN>`
+- **Request Body:**
+    ```json
+    {
+      "longUrl": "https://www.example.com",
+      "customShortUrl": "optionalCustom"
+    }
+    ```
+- **Response:**
+    ```json
+    {
+      "longUrl": "https://www.example.com",
+      "shortUrl": "newAbc123",
+      "expiresAt": "2025-12-31T23:59:59.999Z"
+    }
+    ```
+
+### Rate Limiting
+
+- **Description:** Rate limiting is implemented to prevent abuse. Each user is limited to 10 requests per 20 seconds.
