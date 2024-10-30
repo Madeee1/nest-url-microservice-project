@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { CreateUrlDto } from './dto/create-url.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -32,7 +32,13 @@ export class V1UrlService {
     });
 
     // 2. If the short URL exists, return the long URL.
-    if (url) {
+    // Do a check on expiration
+    if (url && url.expiresAt < new Date()) {
+      throw new HttpException(
+        'URL has expired. PUT a request for a new shortUrl.',
+        410,
+      );
+    } else if (url) {
       return url.longUrl;
     } else {
       return null;

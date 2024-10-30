@@ -1,8 +1,7 @@
 import { Controller, Get, Post, Body, Param, Res } from '@nestjs/common';
 import { V1UrlService } from './url.service';
 import { CreateUrlDto } from './dto/create-url.dto';
-import { Response } from 'express';
-import { CreateUrlRespDto } from './dto/create-url-resp.dto';
+import { Response } from 'express'; // Import Response from express
 
 @Controller('v1/url')
 export class V1UrlController {
@@ -21,7 +20,7 @@ export class V1UrlController {
   @Post()
   async createUrl(
     @Body() createUrlDto: CreateUrlDto,
-  ): Promise<CreateUrlRespDto> {
+  ): Promise<{ longUrl: string; shortUrl: string }> {
     return this.urlService.createUrl(
       createUrlDto.longUrl,
       createUrlDto.customShortUrl,
