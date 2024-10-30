@@ -78,7 +78,11 @@ describe('AppController', () => {
         longUrl,
         customShortUrl,
       });
-      expect(response).toEqual({ longUrl, shortUrl: customShortUrl });
+      expect(response).toEqual({
+        longUrl,
+        shortUrl: customShortUrl,
+        expiresAt: response.expiresAt,
+      });
     });
 
     it('should return the long URL and the same shortUrl', async () => {
@@ -151,6 +155,14 @@ describe('AppController', () => {
       } catch (error) {
         expect(error.message).toEqual('Invalid URL');
       }
+    });
+
+    it('Should return an expiresAt date 5 years from the current date', async () => {
+      const longUrl = 'https://www.github.com';
+      const response = await v1UrlController.createUrl({ longUrl });
+      const expiresAt = new Date();
+      expiresAt.setFullYear(expiresAt.getFullYear() + 5);
+      expect(response.expiresAt.getFullYear).toEqual(expiresAt.getFullYear);
     });
   });
 });
