@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { V1Url } from './db/url.entity';
 import { generate } from 'short-uuid';
+import { CreateUrlRespDto } from './dto/create-url-resp.dto';
 
 @Injectable()
 export class V1UrlService {
@@ -41,7 +42,7 @@ export class V1UrlService {
   async createUrl(
     longUrl: string,
     customShortUrl?: string,
-  ): Promise<{ longUrl: string; shortUrl: string }> {
+  ): Promise<CreateUrlRespDto> {
     // Sanitize the long URL and custom short URL against SQL Injection attacks
     if (
       longUrl.includes(';') ||
@@ -70,7 +71,11 @@ export class V1UrlService {
 
     // 2. If the long URL exists, return the short URL.
     if (existingUrl) {
-      return { longUrl, shortUrl: existingUrl.shortUrl };
+      return {
+        longUrl,
+        shortUrl: existingUrl.shortUrl,
+        expiresAt: existingUrl.expiresAt,
+      };
     }
 
     let shortUrl: string;
@@ -98,10 +103,19 @@ export class V1UrlService {
       shortUrl = await this.generateUniqueShortUrl();
     }
 
+    // 6. Save the long URL and short URL to the database. With the current time, and expiration in 5 years
+    const createdAt = new Date();
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + 5);
+
     try {
-      // 6. Save the long URL and short URL to the database.
-      await this.urlRepository.insert({ longUrl, shortUrl });
-      return { longUrl, shortUrl };
+      await this.urlRepository.insert({
+        longUrl,
+        shortUrl,
+        createdAt,
+        expiresAt,
+      });
+      return { longUrl, shortUrl, expiresAt };
     } catch (error) {
       // Catch unexpected errors
       throw new Error(`Failed to create URL: ${error.message}`);
