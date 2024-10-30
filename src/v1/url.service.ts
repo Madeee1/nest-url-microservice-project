@@ -3,6 +3,8 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
+  HttpStatus,
+  GoneException,
 } from '@nestjs/common';
 import { CreateUrlDto } from './dto/create-url.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -22,107 +24,69 @@ export class V1UrlService {
     private readonly urlRepository: Repository<V1Url>,
   ) {}
 
+  /**
+   * Retrieves the long URL associated with a given short URL.
+   * @param shortUrl The short URL identifier.
+   * @returns The corresponding long URL.
+   */
   async getLongUrl(shortUrl: string): Promise<string> {
-    // Sanitize the short URL against SQL Injection attacks
-    if (
-      shortUrl.includes(';') ||
-      shortUrl.includes('--') ||
-      shortUrl.length > 16 ||
-      shortUrl.includes("'")
-    ) {
-      throw new BadRequestException(
-        'Invalid values. Please enter valid values',
-      );
-    }
+    this.sanitizeUrl(shortUrl);
 
-    // 1. Search the database for the long URL using the short URL.
     const url = await this.urlRepository.findOne({
       where: { shortUrl },
     });
 
-    // 2. If the short URL exists, return the long URL.
-    // Do a check on expiration
-    if (url && url.expiresAt < new Date()) {
-      throw new HttpException(
-        'URL has expired. PUT a request for a new shortUrl.',
-        410,
-      );
-    } else if (url) {
-      return url.longUrl;
-    } else {
+    if (!url) {
       return null;
     }
+
+    // Check for expiration
+    if (url.expiresAt < new Date()) {
+      throw new GoneException('Short URL has expired. Update it with a PUT request.');
+    }
+
+    return url.longUrl;
   }
 
+  /**
+   * Creates a new short URL for a given long URL.
+   * @param longUrl required original url
+   * @param customShortUrl optional
+   * @returns
+   */
   async createUrl(
     longUrl: string,
     customShortUrl?: string,
   ): Promise<CreateUrlRespDto> {
-    // Sanitize the long URL and custom short URL against SQL Injection attacks
-    if (
-      longUrl.includes(';') ||
-      longUrl.includes('--') ||
-      longUrl.includes("'") ||
-      customShortUrl?.includes(';') ||
-      customShortUrl?.includes('--') ||
-      customShortUrl?.includes("'")
-    ) {
-      throw new BadRequestException(
-        'Invalid values. Please enter valid values',
-      );
-    }
+    // 1. Sanitize URLs
+    this.sanitizeUrl(longUrl, customShortUrl);
 
-    // Validate the long URL to ensure it is a valid URL
-    try {
-      new URL(longUrl);
-    } catch (error) {
-      throw new BadRequestException('Invalid URL');
-    }
+    // 2. Validate the long URL
+    this.validateUrlFormat(longUrl);
 
-    // 1. Search if the long URL already exists in the database.
+    // 3. Check if the long URL already exists
     const existingUrl = await this.urlRepository.findOne({
       where: { longUrl },
     });
 
-    // 2. If the long URL exists, return the short URL.
     if (existingUrl) {
       return {
-        longUrl,
+        longUrl: existingUrl.longUrl,
         shortUrl: existingUrl.shortUrl,
         expiresAt: existingUrl.expiresAt,
       };
     }
 
-    let shortUrl: string;
+    // 4. Handle custom short URL or generate a unique one
+    const shortUrl = customShortUrl
+      ? await this.handleCustomShortUrl(customShortUrl)
+      : await this.generateUniqueShortUrl();
 
-    // 3. If there is a custom short URL, check if it already exists in the database
-    if (customShortUrl) {
-      if (customShortUrl.length > 16) {
-        throw new BadRequestException(
-          'Custom short URL must be a maximum of 16 characters',
-        );
-      }
-
-      const existingCustomUrl = await this.urlRepository.findOne({
-        where: { shortUrl: customShortUrl },
-      });
-
-      // 4. If the custom short URL exists, return an error message.
-      if (existingCustomUrl) {
-        throw new BadRequestException('Custom short URL already exists');
-      }
-
-      shortUrl = customShortUrl;
-    } else {
-      // 5. If the custom short URL does not exist, create a new short URL.
-      shortUrl = await this.generateUniqueShortUrl();
-    }
-
-    // 6. Save the long URL and short URL to the database. With the current time, and expiration in 5 years
+    // 5. Calculate creation and expiration dates
     const createdAt = new Date();
-    const expiresAt = new Date();
-    expiresAt.setFullYear(expiresAt.getFullYear() + 5);
+    const expiresAt = this.calculateNewExpirationDate();
 
+    // 6. Save the new URL to the database
     try {
       await this.urlRepository.insert({
         longUrl,
@@ -132,8 +96,11 @@ export class V1UrlService {
       });
       return { longUrl, shortUrl, expiresAt };
     } catch (error) {
-      // Catch unexpected errors
-      throw new Error(`Failed to create URL: ${error.message}`);
+      // Log the error as needed
+      throw new HttpException(
+        `Failed to create URL: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -151,11 +118,7 @@ export class V1UrlService {
     this.sanitizeUrl(longUrl, customShortUrl);
 
     // 2. Validate the long URL
-    try {
-      new URL(longUrl);
-    } catch {
-      throw new BadRequestException('Invalid URL format.');
-    }
+    this.validateUrlFormat(longUrl);
 
     // 3. Retrieve existing URL from repository
     const existingUrl = await this.urlRepository.findOne({
@@ -212,16 +175,28 @@ export class V1UrlService {
   }
 
   /**
-   * Sanitizes the long URL and custom short URL against SQL Injection attacks.
-   * @param longUrl The original long URL.
-   * @param customShortUrl The user-provided custom short URL (optional).
+   * Sanitizes a URL or 2 URLs sagainst SQL Injection attacks.
+   * @param url1 The first URL to sanitize. (required)
+   * @param url2 (optional)
    */
-  private sanitizeUrl(longUrl: string, customShortUrl?: string): void {
+  private sanitizeUrl(url1: string, url2?: string): void {
     if (
-      V1UrlService.SANITIZATION_REGEX.test(longUrl) ||
-      (customShortUrl && V1UrlService.SANITIZATION_REGEX.test(customShortUrl))
+      V1UrlService.SANITIZATION_REGEX.test(url1) ||
+      (url2 && V1UrlService.SANITIZATION_REGEX.test(url2))
     ) {
       throw new BadRequestException('Invalid characters detected in URL.');
+    }
+  }
+
+  /**
+   * Validates the format of the long URL.
+   * @param longUrl The original long URL.
+   */
+  private validateUrlFormat(longUrl: string): void {
+    try {
+      new URL(longUrl);
+    } catch {
+      throw new BadRequestException('Invalid URL format.');
     }
   }
 

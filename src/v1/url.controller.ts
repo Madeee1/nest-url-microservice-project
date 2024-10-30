@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Res, Put } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Res,
+  Put,
+  Redirect,
+  NotFoundException,
+} from '@nestjs/common';
 import { V1UrlService } from './url.service';
 import { CreateUrlDto } from './dto/create-url.dto';
 import { Response } from 'express'; // Import Response from express
@@ -9,12 +19,13 @@ export class V1UrlController {
   constructor(private readonly urlService: V1UrlService) {}
 
   @Get(':shortUrl')
-  async getUrl(@Param('shortUrl') shortUrl: string, @Res() res: Response) {
+  @Redirect()
+  async getUrl(@Param('shortUrl') shortUrl: string) {
     const longUrl = await this.urlService.getLongUrl(shortUrl);
     if (longUrl) {
-      return res.redirect(longUrl);
+      return { url: longUrl };
     } else {
-      return res.status(404).send('URL not found');
+      throw new NotFoundException('URL not found');
     }
   }
 

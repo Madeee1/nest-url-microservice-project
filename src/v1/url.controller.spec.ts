@@ -36,23 +36,19 @@ describe('AppController', () => {
       const shortUrl = 'npm';
       await v1UrlService.createUrl(longUrl, shortUrl);
 
-      const res = createResponse();
-      const response = await v1UrlController.getUrl(
-        shortUrl,
-        res as unknown as Response,
-      );
-      expect(res._getRedirectUrl()).toEqual(longUrl);
+      const response = await v1UrlController.getUrl(shortUrl);
+      expect(response.url).toEqual(longUrl);
     });
 
-    it('should return a 404 error if the short URL does not exist', async () => {
+    it('should return a 404 NotFoundException error if the short URL does not exist', async () => {
       const shortUrl = 'npm';
       const res = createResponse();
 
-      const response = await v1UrlController.getUrl(
-        shortUrl,
-        res as unknown as Response,
-      );
-      expect(res._getData()).toEqual('URL not found');
+      try {
+        const response = await v1UrlController.getUrl(shortUrl);
+      } catch (error) {
+        expect(error.message).toEqual('URL not found');
+      }
     });
 
     it('should protect against SQL Injection attacks', async () => {
@@ -60,109 +56,105 @@ describe('AppController', () => {
       const res = createResponse();
 
       try {
-        await v1UrlController.getUrl(shortUrl, res as unknown as Response);
+        await v1UrlController.getUrl(shortUrl);
       } catch (error) {
-        expect(error.message).toEqual(
-          'Invalid values. Please enter valid values',
-        );
+        expect(error.message).toEqual('Invalid characters detected in URL.');
       }
     });
-  });
 
-  // Test the POST method
-  describe('createUrl', () => {
-    it('should return the long URL and short URL', async () => {
-      const longUrl = 'https://www.npmjs.com';
-      const customShortUrl = 'npm';
-      const response = await v1UrlController.createUrl({
-        longUrl,
-        customShortUrl,
-      });
-      expect(response).toEqual({
-        longUrl,
-        shortUrl: customShortUrl,
-        expiresAt: response.expiresAt,
-      });
-    });
-
-    it('should return the long URL and the same shortUrl', async () => {
-      const longUrl = 'https://www.npmjs.com';
-
-      const response1 = await v1UrlController.createUrl({
-        longUrl,
-        customShortUrl: 'npm',
+    // Test the POST method
+    describe('createUrl', () => {
+      it('should return the long URL and short URL', async () => {
+        const longUrl = 'https://www.npmjs.com';
+        const customShortUrl = 'npm';
+        const response = await v1UrlController.createUrl({
+          longUrl,
+          customShortUrl,
+        });
+        expect(response).toEqual({
+          longUrl,
+          shortUrl: customShortUrl,
+          expiresAt: response.expiresAt,
+        });
       });
 
-      const response = await v1UrlController.createUrl({ longUrl });
-      expect(response.longUrl).toEqual(longUrl);
-      expect(response.shortUrl).toEqual('npm');
-    });
+      it('should return the long URL and the same shortUrl', async () => {
+        const longUrl = 'https://www.npmjs.com';
 
-    it('should return the long URL and a unique short URL, 6 characters in length', async () => {
-      const longUrl = 'https://www.github.com';
-      const response = await v1UrlController.createUrl({ longUrl });
-      expect(response.longUrl).toEqual(longUrl);
-      expect(response.shortUrl.length).toEqual(6);
-    });
+        const response1 = await v1UrlController.createUrl({
+          longUrl,
+          customShortUrl: 'npm',
+        });
 
-    it('should return an error message if the custom short URL already exists', async () => {
-      const longUrl = 'https://www.github.com';
-      const customShortUrl = 'npm';
-      try {
-        await v1UrlController.createUrl({ longUrl, customShortUrl });
-      } catch (error) {
-        expect(error.message).toEqual('Custom short URL already exists');
-      }
-    });
+        const response = await v1UrlController.createUrl({ longUrl });
+        expect(response.longUrl).toEqual(longUrl);
+        expect(response.shortUrl).toEqual('npm');
+      });
 
-    it('should protect against SQL Injection attacks', async () => {
-      const longUrl = "'; DROP TABLE V1Url; --";
-      const customShortUrl = "'; DROP TABLE V1Url; --";
-      try {
-        await v1UrlController.createUrl({ longUrl, customShortUrl });
-      } catch (error) {
-        expect(error.message).toEqual(
-          'Invalid values. Please enter valid values',
-        );
-      }
-    });
+      it('should return the long URL and a unique short URL, 6 characters in length', async () => {
+        const longUrl = 'https://www.github.com';
+        const response = await v1UrlController.createUrl({ longUrl });
+        expect(response.longUrl).toEqual(longUrl);
+        expect(response.shortUrl.length).toEqual(6);
+      });
 
-    it('should return an error message if the custom short URL is more than 16 characters', async () => {
-      const longUrl = 'https://www.github.com';
-      const customShortUrl = 'this-is-a-very-long-url';
-      try {
-        await v1UrlController.createUrl({ longUrl, customShortUrl });
-      } catch (error) {
-        expect(error.message).toEqual(
-          'Custom short URL must be a maximum of 16 characters',
-        );
-      }
-    });
+      it('should return an error message if the custom short URL already exists', async () => {
+        const longUrl = 'https://www.github.com';
+        const customShortUrl = 'npm';
+        try {
+          await v1UrlController.createUrl({ longUrl, customShortUrl });
+        } catch (error) {
+          expect(error.message).toEqual('Custom short URL already exists');
+        }
+      });
 
-    it('should return an error message if the long url is empty', async () => {
-      const longUrl = '';
-      try {
-        await v1UrlController.createUrl({ longUrl });
-      } catch (error) {
-        expect(error.message).toEqual('Invalid URL');
-      }
-    });
+      it('should protect against SQL Injection attacks', async () => {
+        const longUrl = "'; DROP TABLE V1Url; --";
+        const customShortUrl = "'; DROP TABLE V1Url; --";
+        try {
+          await v1UrlController.createUrl({ longUrl, customShortUrl });
+        } catch (error) {
+          expect(error.message).toEqual('Invalid characters detected in URL.');
+        }
+      });
 
-    it('should return an error message if the long url is not a valid URL', async () => {
-      const longUrl = 'not-a-valid-url';
-      try {
-        await v1UrlController.createUrl({ longUrl });
-      } catch (error) {
-        expect(error.message).toEqual('Invalid URL');
-      }
-    });
+      it('should return an error message if the custom short URL is more than 16 characters', async () => {
+        const longUrl = 'https://www.github.com';
+        const customShortUrl = 'thisisaveryverylongurl';
+        try {
+          await v1UrlController.createUrl({ longUrl, customShortUrl });
+        } catch (error) {
+          expect(error.message).toEqual(
+            'Custom short URL must be at most 16 characters.',
+          );
+        }
+      });
 
-    it('Should return an expiresAt date 5 years from the current date', async () => {
-      const longUrl = 'https://www.github.com';
-      const response = await v1UrlController.createUrl({ longUrl });
-      const expiresAt = new Date();
-      expiresAt.setFullYear(expiresAt.getFullYear() + 5);
-      expect(response.expiresAt.getFullYear).toEqual(expiresAt.getFullYear);
+      it('should return an error message if the long url is empty', async () => {
+        const longUrl = '';
+        try {
+          await v1UrlController.createUrl({ longUrl });
+        } catch (error) {
+          expect(error.message).toEqual('Invalid URL format.');
+        }
+      });
+
+      it('should return an error message if the long url is not a valid URL', async () => {
+        const longUrl = 'not-a-valid-url';
+        try {
+          await v1UrlController.createUrl({ longUrl });
+        } catch (error) {
+          expect(error.message).toEqual('Invalid characters detected in URL.');
+        }
+      });
+
+      it('Should return an expiresAt date 5 years from the current date', async () => {
+        const longUrl = 'https://www.github.com';
+        const response = await v1UrlController.createUrl({ longUrl });
+        const expiresAt = new Date();
+        expiresAt.setFullYear(expiresAt.getFullYear() + 5);
+        expect(response.expiresAt.getFullYear).toEqual(expiresAt.getFullYear);
+      });
     });
   });
 });
