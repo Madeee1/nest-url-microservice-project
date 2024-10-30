@@ -1,4 +1,9 @@
-import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateUrlDto } from './dto/create-url.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -8,6 +13,10 @@ import { CreateUrlRespDto } from './dto/create-url-resp.dto';
 
 @Injectable()
 export class V1UrlService {
+  private static readonly MAX_CUSTOM_SHORT_URL_LENGTH = 16;
+  private static readonly EXPIRATION_YEARS = 5;
+  private static readonly SANITIZATION_REGEX = /[;'--]/;
+
   constructor(
     @InjectRepository(V1Url)
     private readonly urlRepository: Repository<V1Url>,
@@ -128,21 +137,126 @@ export class V1UrlService {
     }
   }
 
+  /**
+   * Updates an expired URL with a new short URL and expiration date.
+   * @param longUrl The long URL to update
+   * @param customShortUrl The custom short URL to update
+   * @returns The updated URL response
+   */
+  async updateUrl(
+    longUrl: string,
+    customShortUrl?: string,
+  ): Promise<CreateUrlRespDto> {
+    // 1. Sanitization
+    this.sanitizeUrl(longUrl, customShortUrl);
+
+    // 2. Validate the long URL
+    try {
+      new URL(longUrl);
+    } catch {
+      throw new BadRequestException('Invalid URL format.');
+    }
+
+    // 3. Retrieve existing URL from repository
+    const existingUrl = await this.urlRepository.findOne({
+      where: { longUrl },
+    });
+
+    if (!existingUrl) {
+      throw new NotFoundException('URL not found.');
+    }
+
+    if (existingUrl.expiresAt >= new Date()) {
+      // URL exists and is not expired
+      return {
+        longUrl,
+        shortUrl: existingUrl.shortUrl,
+        expiresAt: existingUrl.expiresAt,
+      };
+    }
+
+    // 4. Handle expired URL
+    const shortUrl = customShortUrl
+      ? await this.handleCustomShortUrl(customShortUrl)
+      : await this.generateUniqueShortUrl();
+
+    const newExpiresAt = this.calculateNewExpirationDate();
+
+    // 5. Update the repository with new shortUrl and expiresAt
+    await this.urlRepository.update(
+      { longUrl },
+      { shortUrl, expiresAt: newExpiresAt },
+    );
+
+    return { longUrl, shortUrl, expiresAt: newExpiresAt };
+  }
+
+  /**
+   * Generates a unique short URL.
+   * @returns A unique short URL string.
+   */
   private async generateUniqueShortUrl(): Promise<string> {
     let uniqueShortUrl: string;
-    let isUnique = false;
 
-    while (!isUnique) {
+    do {
       uniqueShortUrl = generate().substring(0, 6);
       const existingUrl = await this.urlRepository.findOne({
         where: { shortUrl: uniqueShortUrl },
       });
-
       if (!existingUrl) {
-        isUnique = true;
+        break;
       }
-    }
+    } while (true);
 
     return uniqueShortUrl;
+  }
+
+  /**
+   * Sanitizes the long URL and custom short URL against SQL Injection attacks.
+   * @param longUrl The original long URL.
+   * @param customShortUrl The user-provided custom short URL (optional).
+   */
+  private sanitizeUrl(longUrl: string, customShortUrl?: string): void {
+    if (
+      V1UrlService.SANITIZATION_REGEX.test(longUrl) ||
+      (customShortUrl && V1UrlService.SANITIZATION_REGEX.test(customShortUrl))
+    ) {
+      throw new BadRequestException('Invalid characters detected in URL.');
+    }
+  }
+
+  /**
+   * Handles  creation and validation of a custom short URL.
+   * @param customShortUrl The custom short URL provided by the user.
+   * @returns The validated custom short URL.
+   */
+  private async handleCustomShortUrl(customShortUrl: string): Promise<string> {
+    if (customShortUrl.length > V1UrlService.MAX_CUSTOM_SHORT_URL_LENGTH) {
+      throw new BadRequestException(
+        `Custom short URL must be at most ${V1UrlService.MAX_CUSTOM_SHORT_URL_LENGTH} characters.`,
+      );
+    }
+
+    const existingCustomUrl = await this.urlRepository.findOne({
+      where: { shortUrl: customShortUrl },
+    });
+
+    if (existingCustomUrl) {
+      throw new BadRequestException('Custom short URL already exists.');
+    }
+
+    return customShortUrl;
+  }
+
+  /**
+   * Calculates the new expiration date.
+   * @returns A Date object set to the new expiration date.
+   */
+  private calculateNewExpirationDate(): Date {
+    const expiresAt = new Date();
+    expiresAt.setFullYear(
+      expiresAt.getFullYear() + V1UrlService.EXPIRATION_YEARS,
+    );
+    return expiresAt;
   }
 }

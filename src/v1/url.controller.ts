@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Param, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Res, Put } from '@nestjs/common';
 import { V1UrlService } from './url.service';
 import { CreateUrlDto } from './dto/create-url.dto';
 import { Response } from 'express'; // Import Response from express
+import { CreateUrlRespDto } from './dto/create-url-resp.dto';
 
 @Controller('v1/url')
 export class V1UrlController {
@@ -20,8 +21,19 @@ export class V1UrlController {
   @Post()
   async createUrl(
     @Body() createUrlDto: CreateUrlDto,
-  ): Promise<{ longUrl: string; shortUrl: string }> {
+  ): Promise<CreateUrlRespDto> {
     return this.urlService.createUrl(
+      createUrlDto.longUrl,
+      createUrlDto.customShortUrl,
+    );
+  }
+
+  // Only updates expired URLs
+  @Put()
+  async updateUrl(
+    @Body() createUrlDto: CreateUrlDto,
+  ): Promise<CreateUrlRespDto> {
+    return this.urlService.updateUrl(
       createUrlDto.longUrl,
       createUrlDto.customShortUrl,
     );
