@@ -14,7 +14,7 @@
 8. Unit tests to test functionality - FULFILLED
 9. API Endpoint Documentation - FULFILLED - at bottom of Readme
 10. Migration File for MySQL - PARTIALLY FULFILLED - use of sqlite instead through TypeORM
-11. API Documentation using Postman or Swagger
+11. API Documentation using Postman or Swagger - FULFILLED - use of Swagger
 
 ## Setup Instructions:
 1. Run ```npm install``` in the terminal, using Node 20.12.1
@@ -43,6 +43,14 @@ $ npm run start:dev
 # unit tests
 $ npm run test
 ```
+
+## Swagger API Documentation
+
+After the service is on, open this link to go to the Swagger documentation:
+
+[localhost:3000/api-docs](localhost:3000/api-docs)
+
+Note: Link only available in non-production deployments
 
 ## API Endpoints
 
