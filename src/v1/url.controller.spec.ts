@@ -3,8 +3,9 @@ import { V1UrlController } from './url.controller';
 import { V1UrlService } from './url.service';
 import { V1Url } from './db/url.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Response } from 'express';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { createResponse } from 'node-mocks-http';
+import { ExecutionContext } from '@nestjs/common';
 
 describe('AppController', () => {
   let v1UrlController: V1UrlController;
@@ -23,7 +24,12 @@ describe('AppController', () => {
       ],
       controllers: [V1UrlController],
       providers: [V1UrlService],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext) => true, // Mock guard to always allow
+      })
+      .compile();
 
     v1UrlController = module.get<V1UrlController>(V1UrlController);
     v1UrlService = module.get<V1UrlService>(V1UrlService);

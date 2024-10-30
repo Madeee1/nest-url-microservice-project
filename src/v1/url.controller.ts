@@ -8,11 +8,12 @@ import {
   Put,
   Redirect,
   NotFoundException,
+  UseGuards,
 } from '@nestjs/common';
 import { V1UrlService } from './url.service';
 import { CreateUrlDto } from './dto/create-url.dto';
-import { Response } from 'express'; // Import Response from express
 import { CreateUrlRespDto } from './dto/create-url-resp.dto';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
 @Controller('v1/url')
 export class V1UrlController {
@@ -29,6 +30,7 @@ export class V1UrlController {
     }
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post()
   async createUrl(
     @Body() createUrlDto: CreateUrlDto,
@@ -40,6 +42,7 @@ export class V1UrlController {
   }
 
   // Only updates expired URLs
+  @UseGuards(JwtAuthGuard)
   @Put()
   async updateUrl(
     @Body() createUrlDto: CreateUrlDto,
