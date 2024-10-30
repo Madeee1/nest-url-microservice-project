@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  Index,
+  CreateDateColumn,
+} from 'typeorm';
 
 @Entity()
 export class V1Url {
@@ -12,4 +18,10 @@ export class V1Url {
   @Column({ unique: true })
   @Index()
   shortUrl: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @Column({ type: 'datetime' })
+  expiresAt: Date;
 }
