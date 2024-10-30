@@ -46,8 +46,10 @@ export class V1UrlService {
     if (
       longUrl.includes(';') ||
       longUrl.includes('--') ||
+      longUrl.includes("'") ||
       customShortUrl?.includes(';') ||
-      customShortUrl?.includes('--')
+      customShortUrl?.includes('--') ||
+      customShortUrl?.includes("'")
     ) {
       throw new BadRequestException(
         'Invalid values. Please enter valid values',
